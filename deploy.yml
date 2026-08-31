@@ -1,5 +1,4 @@
-
-name: Deploy Angular to Hostinger VPS
+name: Deploy website to Hostinger VPS
 
 on:
   push:
@@ -7,44 +6,22 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get source code
+      - name: Get repository files
         uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: npm
-
-      - name: Build Angular project
-        shell: bash
+      - name: Prepare static website files
         run: |
           rm -rf deploy
           mkdir -p deploy
 
-          if [ -f package.json ]; then
-            npm ci
-            npm run build
-
-            BUILD_DIR="$(find dist -type f -name index.html -printf '%h\n' | head -n 1)"
-
-            if [ -z "$BUILD_DIR" ]; then
-              echo "Angular index.html was not found inside dist"
-              exit 1
-            fi
-
-            cp -a "$BUILD_DIR"/. deploy/
-          else
-            echo "No package.json found; using the files already in the repository"
-            rsync -a \
-              --exclude ".git" \
-              --exclude ".github" \
-              ./ deploy/
-          fi
+          rsync -a \
+            --exclude ".git" \
+            --exclude ".github" \
+            ./ deploy/
 
       - name: Upload files to VPS
         uses: appleboy/scp-action@v1
@@ -57,7 +34,7 @@ jobs:
           strip_components: 1
           overwrite: true
 
-      - name: Publish files on VPS
+      - name: Publish website
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
