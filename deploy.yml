@@ -1,1 +1,76 @@
 
+name: Deploy Angular to Hostinger VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Build Angular project
+        shell: bash
+        run: |
+          rm -rf deploy
+          mkdir -p deploy
+
+          if [ -f package.json ]; then
+            npm ci
+            npm run build
+
+            BUILD_DIR="$(find dist -type f -name index.html -printf '%h\n' | head -n 1)"
+
+            if [ -z "$BUILD_DIR" ]; then
+              echo "Angular index.html was not found inside dist"
+              exit 1
+            fi
+
+            cp -a "$BUILD_DIR"/. deploy/
+          else
+            echo "No package.json found; using the files already in the repository"
+            rsync -a \
+              --exclude ".git" \
+              --exclude ".github" \
+              ./ deploy/
+          fi
+
+      - name: Upload files to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "deploy/*"
+          target: "/tmp/morningtax-deploy"
+          strip_components: 1
+          overwrite: true
+
+      - name: Publish files on VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            cp -a /var/www/html "/var/www/html-backup-$(date +%F-%H%M)"
+            rm -rf /var/www/html/*
+            cp -a /tmp/morningtax-deploy/. /var/www/html/
+            chown -R www-data:www-data /var/www/html
+
+            nginx -t
+            systemctl reload nginx
+            rm -rf /tmp/morningtax-deploy
