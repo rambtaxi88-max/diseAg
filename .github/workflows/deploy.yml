@@ -17,37 +17,38 @@ jobs:
         run: |
           rm -rf deploy
           mkdir -p deploy
-
           rsync -a \
             --exclude ".git" \
             --exclude ".github" \
             ./ deploy/
 
+      # Add this step here
       - name: Upload files to VPS
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           source: "deploy/*"
           target: "/tmp/morningtax-deploy"
           strip_components: 1
           overwrite: true
 
+      # Add this step directly after the upload step
       - name: Publish website
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           script: |
             set -e
-
             cp -a /var/www/html "/var/www/html-backup-$(date +%F-%H%M)"
             rm -rf /var/www/html/*
             cp -a /tmp/morningtax-deploy/. /var/www/html/
             chown -R www-data:www-data /var/www/html
-
             nginx -t
             systemctl reload nginx
             rm -rf /tmp/morningtax-deploy
