@@ -23,7 +23,7 @@ jobs:
           source: "index.html,*.js,*.css,images,media"
           target: "/tmp/morningtax-deploy"
 
-      - name: Publish files on VPS
+      - name: Publish website
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -32,18 +32,11 @@ jobs:
           port: 22
           script: |
             set -e
-
-            BACKUP="/var/backups/morningtax-$(date +%Y%m%d-%H%M%S).tar.gz"
             mkdir -p /var/backups
-            tar -czf "$BACKUP" -C /var/www/html . || true
-
-            find /var/www/html -mindepth 1 \
-              ! -name ".well-known" \
-              -exec rm -rf {} +
-
+            tar -czf "/var/backups/morningtax-$(date +%Y%m%d-%H%M%S).tar.gz" -C /var/www/html . || true
+            find /var/www/html -mindepth 1 ! -name ".well-known" -exec rm -rf {} +
             cp -r /tmp/morningtax-deploy/. /var/www/html/
             chown -R www-data:www-data /var/www/html
-
             nginx -t
             systemctl reload nginx
             rm -rf /tmp/morningtax-deploy
